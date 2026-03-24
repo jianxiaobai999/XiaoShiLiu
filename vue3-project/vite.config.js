@@ -30,14 +30,16 @@ export default defineConfig({
     },
   },
   server: {
-    /* allowedHosts: [   //添加白名单域名，手动部署取消前面的注释把qq.com替换成你的白名单域名
-        'localhost',
-        '127.0.0.1',
-        'qq.com'
-      ],  */
+      
+     allowedHosts: [   //添加白名单域名，手动部署取消前面的注释把qq.com替换成你的白名单域名
+        // 'localhost',
+        // '127.0.0.1',
+        // 'qq.com',
+        'www.cycacg.com'
+      ], 
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',//后端接口地址
+        target: 'http://www.cycacg.com:3001',//后端接口地址
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '/api')
       },
