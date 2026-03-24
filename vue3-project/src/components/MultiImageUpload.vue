@@ -38,6 +38,17 @@
           <p v-if="!isUploading" class="drag-hint">或拖拽图片到此处</p>
         </div>
       </div>
+
+      <!-- 网络图片按钮（仅在后台管理系统显示） -->
+      <div v-if="imageList.length < maxImages && isAdminMode" class="upload-item network-upload-item" 
+           @click="!isUploading && openNetworkImageModal()"
+           :class="{ 'uploading': isUploading }">
+        <div class="upload-placeholder">
+          <SvgIcon name="link" class="upload-icon" />
+          <p>网络图片</p>
+          <p class="upload-hint">粘贴链接</p>
+        </div>
+      </div>
     </div>
 
     <div v-if="error" class="error-message">
@@ -47,8 +58,10 @@
     <div class="upload-tips">
       <p>• 最多上传{{ maxImages }}张图片</p>
       <p>• 支持 JPG、PNG 格式</p>
-      <p>• 单张图片不超过5MB</p>
+      <p>• 单张图片不超过 5MB</p>
       <p class="drag-tip">• <span class="desktop-tip">拖拽图片可调整顺序</span><span class="mobile-tip">长按图片可拖拽排序</span></p>
+      <p v-if="isAdminMode">• 支持本地上传和网络图片链接</p>
+      <p v-else>• 仅支持本地上传图片</p>
     </div>
 
 
@@ -57,14 +70,25 @@
     <!-- 图片查看器 -->
     <ImageViewer :visible="showImageViewer" :images="viewerImages" :initial-index="currentImageIndex" image-type="post"
       @close="handleImageViewerClose" @change="handleImageViewerChange" />
+
+    <!-- 网络图片上传模态框 -->
+    <NetworkImageModal 
+      :visible="showNetworkModal" 
+      :existing-urls="currentImageUrls"
+      :max-count="maxImages - imageList.length"
+      @confirm="handleNetworkImageConfirm"
+      @close="closeNetworkImageModal"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import SvgIcon from '@/components/SvgIcon.vue'
 import MessageToast from '@/components/MessageToast.vue'
 import ImageViewer from '@/components/ImageViewer.vue'
+import NetworkImageModal from '@/components/modals/NetworkImageModal.vue'
 import { imageUploadApi } from '@/api/index.js'
 
 const props = defineProps({
@@ -83,6 +107,15 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue', 'error'])
+
+// 获取当前路由信息
+const route = useRoute()
+
+// 判断是否在后台管理系统中
+const isAdminMode = computed(() => {
+  // 检查路由路径是否以/admin开头
+  return route.path.startsWith('/admin')
+})
 
 const fileInput = ref(null)
 const imageList = ref([])
@@ -110,12 +143,53 @@ const longPressTimer = ref(null)
 const longPressDelay = 300 // 长按延迟时间
 const isLongPressed = ref(false)
 
-// ImageViewer相关状态
+// ImageViewer 相关状态
 const showImageViewer = ref(false)
 const currentImageIndex = ref(0)
 const viewerImages = ref([])
 
-// 生成唯一ID
+// 网络图片相关状态
+const showNetworkModal = ref(false)
+
+// 获取当前所有图片 URL
+const currentImageUrls = computed(() => {
+  return imageList.value
+    .filter(item => item.uploaded && item.url && !item.url.startsWith('data:'))
+    .map(item => item.url)
+})
+
+// 打开网络图片模态框
+const openNetworkImageModal = () => {
+  showNetworkModal.value = true
+}
+
+// 关闭网络图片模态框
+const closeNetworkImageModal = () => {
+  showNetworkModal.value = false
+}
+
+// 处理网络图片确认
+const handleNetworkImageConfirm = (urls) => {
+  // 为每个 URL 创建图片项
+  urls.forEach(url => {
+    imageList.value.push({
+      id: generateId(),
+      file: null,
+      preview: url,
+      uploaded: true,
+      url: url
+    })
+  })
+  
+  closeNetworkImageModal()
+  
+  // 显示成功提示
+  if (urls.length > 0) {
+    showMessage(`成功添加${urls.length}张网络图片`, 'success')
+  }
+}
+
+// 生成唯一 ID
 const generateId = () => Date.now() + Math.random().toString(36).substr(2, 9)
 
 // 初始化图片列表（如果有外部传入的值）
@@ -823,6 +897,18 @@ defineExpose({
   background-color: rgba(255, 71, 87, 0.05);
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+.network-upload-item {
+  border-color: var(--border-color-primary);
+  background: var(--bg-color-primary);
+}
+
+.network-upload-item:hover:not(.uploading) {
+  border-color: var(--primary-color);
+  background-color: rgba(255, 71, 87, 0.05);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .upload-icon.uploading {
